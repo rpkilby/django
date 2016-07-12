@@ -10,7 +10,7 @@ from django.db import connection, models
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from .models import Author, MySQLUnixTimestamp
+from .models import Article, Author, MySQLUnixTimestamp
 
 
 @contextlib.contextmanager
@@ -318,6 +318,16 @@ class LookupTests(TestCase):
             self.assertQuerysetEqual(
                 baseqs.filter(age__div3__range=(1, 2)),
                 [a1, a2, a4], lambda x: x)
+
+    def test_foreignobject_lookup_registration(self):
+        with register_lookup(models.ForeignObject, Exactly):
+            field = Article._meta.get_field('author')
+            self.assertIs(field.get_lookup('exactly'), Exactly)
+
+        # ForeignObject should ignore regular Field lookups
+        with register_lookup(models.Field, Exactly):
+            field = Article._meta.get_field('author')
+            self.assertIsNone(field.get_lookup('exactly'))
 
 
 class BilateralTransformTests(TestCase):

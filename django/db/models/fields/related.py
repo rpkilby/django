@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import inspect
 import warnings
 from functools import partial
 
@@ -731,26 +732,23 @@ class ForeignObject(RelatedField):
         pathinfos = [PathInfo(from_opts, opts, (opts.pk,), self.remote_field, not self.unique, False)]
         return pathinfos
 
-    def get_lookup(self, lookup_name):
-        if lookup_name == 'in':
-            return RelatedIn
-        elif lookup_name == 'exact':
-            return RelatedExact
-        elif lookup_name == 'gt':
-            return RelatedGreaterThan
-        elif lookup_name == 'gte':
-            return RelatedGreaterThanOrEqual
-        elif lookup_name == 'lt':
-            return RelatedLessThan
-        elif lookup_name == 'lte':
-            return RelatedLessThanOrEqual
-        elif lookup_name == 'isnull':
-            return RelatedIsNull
-        else:
-            raise TypeError('Related Field got invalid lookup: %s' % lookup_name)
-
-    def get_transform(self, *args, **kwargs):
-        raise NotImplementedError('Relational fields do not support transforms.')
+    def _get_lookup(self, lookup_name):
+        try:
+            return self.class_lookups[lookup_name]
+        except KeyError:
+            # To allow for inheritance, check parent class' class_lookups.
+            for parent in inspect.getmro(self.__class__):
+                # Related lookups need to be explicitly registered to related fields.
+                if parent is ForeignObject:
+                    break
+                if 'class_lookups' not in parent.__dict__:
+                    continue
+                if lookup_name in parent.class_lookups:
+                    return parent.class_lookups[lookup_name]
+        except AttributeError:
+            # This class didn't have any class_lookups
+            pass
+        return None
 
     def contribute_to_class(self, cls, name, private_only=False, **kwargs):
         super(ForeignObject, self).contribute_to_class(cls, name, private_only=private_only, **kwargs)
@@ -766,6 +764,14 @@ class ForeignObject(RelatedField):
             # model load time.
             if self.remote_field.limit_choices_to:
                 cls._meta.related_fkey_lookups.append(self.remote_field.limit_choices_to)
+
+ForeignObject.register_lookup(RelatedIn)
+ForeignObject.register_lookup(RelatedExact)
+ForeignObject.register_lookup(RelatedLessThan)
+ForeignObject.register_lookup(RelatedGreaterThan)
+ForeignObject.register_lookup(RelatedGreaterThanOrEqual)
+ForeignObject.register_lookup(RelatedLessThanOrEqual)
+ForeignObject.register_lookup(RelatedIsNull)
 
 
 class ForeignKey(ForeignObject):
