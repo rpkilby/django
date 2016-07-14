@@ -12,7 +12,7 @@ from django.db.backends import utils
 from django.db.models import Q
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.deletion import CASCADE, SET_DEFAULT, SET_NULL
-from django.db.models.query_utils import PathInfo
+from django.db.models.query_utils import PathInfo, merge_dicts
 from django.db.models.utils import make_model_tuple
 from django.utils import six
 from django.utils.deprecation import RemovedInDjango20Warning
@@ -732,23 +732,10 @@ class ForeignObject(RelatedField):
         pathinfos = [PathInfo(from_opts, opts, (opts.pk,), self.remote_field, not self.unique, False)]
         return pathinfos
 
-    def _get_lookup(self, lookup_name):
-        try:
-            return self.class_lookups[lookup_name]
-        except KeyError:
-            # To allow for inheritance, check parent class' class_lookups.
-            for parent in inspect.getmro(self.__class__):
-                # Related lookups need to be explicitly registered to related fields.
-                if parent is ForeignObject:
-                    break
-                if 'class_lookups' not in parent.__dict__:
-                    continue
-                if lookup_name in parent.class_lookups:
-                    return parent.class_lookups[lookup_name]
-        except AttributeError:
-            # This class didn't have any class_lookups
-            pass
-        return None
+    def get_lookups(self):
+        bases = inspect.getmro(self.__class__)
+        bases = bases[:bases.index(ForeignObject)+1]
+        return merge_dicts([getattr(cls, 'class_lookups', {}) for cls in bases])
 
     def contribute_to_class(self, cls, name, private_only=False, **kwargs):
         super(ForeignObject, self).contribute_to_class(cls, name, private_only=private_only, **kwargs)
