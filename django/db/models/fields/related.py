@@ -1,5 +1,6 @@
 from __future__ import unicode_literals
 
+import inspect
 import warnings
 from functools import partial
 
@@ -11,7 +12,7 @@ from django.db.backends import utils
 from django.db.models import Q
 from django.db.models.constants import LOOKUP_SEP
 from django.db.models.deletion import CASCADE, SET_DEFAULT, SET_NULL
-from django.db.models.query_utils import PathInfo
+from django.db.models.query_utils import PathInfo, merge_dicts
 from django.db.models.utils import make_model_tuple
 from django.utils import six
 from django.utils.deprecation import RemovedInDjango20Warning
@@ -731,26 +732,10 @@ class ForeignObject(RelatedField):
         pathinfos = [PathInfo(from_opts, opts, (opts.pk,), self.remote_field, not self.unique, False)]
         return pathinfos
 
-    def get_lookup(self, lookup_name):
-        if lookup_name == 'in':
-            return RelatedIn
-        elif lookup_name == 'exact':
-            return RelatedExact
-        elif lookup_name == 'gt':
-            return RelatedGreaterThan
-        elif lookup_name == 'gte':
-            return RelatedGreaterThanOrEqual
-        elif lookup_name == 'lt':
-            return RelatedLessThan
-        elif lookup_name == 'lte':
-            return RelatedLessThanOrEqual
-        elif lookup_name == 'isnull':
-            return RelatedIsNull
-        else:
-            raise TypeError('Related Field got invalid lookup: %s' % lookup_name)
-
-    def get_transform(self, *args, **kwargs):
-        raise NotImplementedError('Relational fields do not support transforms.')
+    def get_lookups(self):
+        bases = inspect.getmro(self.__class__)
+        bases = bases[:bases.index(ForeignObject)+1]
+        return merge_dicts([getattr(cls, 'class_lookups', {}) for cls in bases])
 
     def contribute_to_class(self, cls, name, private_only=False, **kwargs):
         super(ForeignObject, self).contribute_to_class(cls, name, private_only=private_only, **kwargs)
@@ -766,6 +751,14 @@ class ForeignObject(RelatedField):
             # model load time.
             if self.remote_field.limit_choices_to:
                 cls._meta.related_fkey_lookups.append(self.remote_field.limit_choices_to)
+
+ForeignObject.register_lookup(RelatedIn)
+ForeignObject.register_lookup(RelatedExact)
+ForeignObject.register_lookup(RelatedLessThan)
+ForeignObject.register_lookup(RelatedGreaterThan)
+ForeignObject.register_lookup(RelatedGreaterThanOrEqual)
+ForeignObject.register_lookup(RelatedLessThanOrEqual)
+ForeignObject.register_lookup(RelatedIsNull)
 
 
 class ForeignKey(ForeignObject):

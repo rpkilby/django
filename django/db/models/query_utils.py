@@ -27,6 +27,16 @@ class InvalidQuery(Exception):
     pass
 
 
+def merge_dicts(dicts):
+    merged = {}
+
+    # merge in reverse to preference order
+    for d in reversed(dicts):
+        merged.update(d)
+
+    return merged
+
+
 class QueryWrapper(object):
     """
     A type that indicates the contents are an SQL fragment and the associate
@@ -133,19 +143,11 @@ class DeferredAttribute(object):
 
 class RegisterLookupMixin(object):
     def _get_lookup(self, lookup_name):
-        try:
-            return self.class_lookups[lookup_name]
-        except KeyError:
-            # To allow for inheritance, check parent class' class_lookups.
-            for parent in inspect.getmro(self.__class__):
-                if 'class_lookups' not in parent.__dict__:
-                    continue
-                if lookup_name in parent.class_lookups:
-                    return parent.class_lookups[lookup_name]
-        except AttributeError:
-            # This class didn't have any class_lookups
-            pass
-        return None
+        return self.get_lookups().get(lookup_name, None)
+
+    def get_lookups(self):
+        class_lookups = [getattr(cls, 'class_lookups', {}) for cls in inspect.getmro(self.__class__)]
+        return merge_dicts(class_lookups)
 
     def get_lookup(self, lookup_name):
         from django.db.models.lookups import Lookup
