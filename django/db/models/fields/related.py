@@ -732,23 +732,11 @@ class ForeignObject(RelatedField):
         pathinfos = [PathInfo(from_opts, opts, (opts.pk,), self.remote_field, not self.unique, False)]
         return pathinfos
 
-    def _get_lookup(self, lookup_name):
-        try:
-            return self.class_lookups[lookup_name]
-        except KeyError:
-            # To allow for inheritance, check parent class' class_lookups.
-            for parent in inspect.getmro(self.__class__):
-                # Related lookups need to be explicitly registered to related fields.
-                if parent is ForeignObject:
-                    break
-                if 'class_lookups' not in parent.__dict__:
-                    continue
-                if lookup_name in parent.class_lookups:
-                    return parent.class_lookups[lookup_name]
-        except AttributeError:
-            # This class didn't have any class_lookups
-            pass
-        return None
+    def _get_lookup(self, lookup_name, bases=None):
+        if bases is None:
+            bases = inspect.getmro(self.__class__)
+            bases = bases[:bases.index(ForeignObject)+1]
+        return super(ForeignObject, self)._get_lookup(lookup_name, bases)
 
     def contribute_to_class(self, cls, name, private_only=False, **kwargs):
         super(ForeignObject, self).contribute_to_class(cls, name, private_only=private_only, **kwargs)
