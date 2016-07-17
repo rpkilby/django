@@ -733,9 +733,13 @@ class ForeignObject(RelatedField):
         return pathinfos
 
     def get_lookups(self):
-        bases = inspect.getmro(self.__class__)
-        bases = bases[:bases.index(ForeignObject)+1]
-        return merge_dicts([getattr(cls, 'class_lookups', {}) for cls in bases])
+        if 'cached_lookups' not in self.__class__.__dict__:
+            bases = inspect.getmro(self.__class__)
+            bases = bases[:bases.index(ForeignObject)+1]
+            class_lookups = [parent.__dict__.get('class_lookups', {}) for parent in bases]
+            self.__class__.cached_lookups = merge_dicts(class_lookups)
+
+        return self.__class__.cached_lookups
 
     def contribute_to_class(self, cls, name, private_only=False, **kwargs):
         super(ForeignObject, self).contribute_to_class(cls, name, private_only=private_only, **kwargs)

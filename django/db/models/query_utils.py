@@ -146,8 +146,11 @@ class RegisterLookupMixin(object):
         return self.get_lookups().get(lookup_name, None)
 
     def get_lookups(self):
-        class_lookups = [getattr(cls, 'class_lookups', {}) for cls in inspect.getmro(self.__class__)]
-        return merge_dicts(class_lookups)
+        if 'cached_lookups' not in self.__class__.__dict__:
+            class_lookups = [parent.__dict__.get('class_lookups', {}) for parent in inspect.getmro(self.__class__)]
+            self.__class__.cached_lookups = merge_dicts(class_lookups)
+
+        return self.__class__.cached_lookups
 
     def get_lookup(self, lookup_name):
         from django.db.models.lookups import Lookup
@@ -174,6 +177,9 @@ class RegisterLookupMixin(object):
         if 'class_lookups' not in cls.__dict__:
             cls.class_lookups = {}
         cls.class_lookups[lookup_name] = lookup
+        # bust lookups cache for this class only
+        if 'cached_lookups' in cls.__dict__:
+            del cls.cached_lookups
         return lookup
 
     @classmethod
