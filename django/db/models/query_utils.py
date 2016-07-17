@@ -37,6 +37,13 @@ def merge_dicts(dicts):
     return merged
 
 
+def get_subclasses(cls):
+    for subclass in cls.__subclasses__():
+        for subsubclass in get_subclasses(subclass):
+            yield subsubclass
+        yield subclass
+
+
 class QueryWrapper(object):
     """
     A type that indicates the contents are an SQL fragment and the associate
@@ -171,15 +178,22 @@ class RegisterLookupMixin(object):
         return found
 
     @classmethod
+    def _bust_cached_lookups(cls):
+        for subclass in get_subclasses(cls):
+            if 'cached_lookups' in subclass.__dict__:
+                del subclass.cached_lookups
+
+        if 'cached_lookups' in cls.__dict__:
+            del cls.cached_lookups
+
+    @classmethod
     def register_lookup(cls, lookup, lookup_name=None):
         if lookup_name is None:
             lookup_name = lookup.lookup_name
         if 'class_lookups' not in cls.__dict__:
             cls.class_lookups = {}
         cls.class_lookups[lookup_name] = lookup
-        # bust lookups cache for this class only
-        if 'cached_lookups' in cls.__dict__:
-            del cls.cached_lookups
+        cls._bust_cached_lookups()
         return lookup
 
     @classmethod
